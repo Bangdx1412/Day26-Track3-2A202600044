@@ -1,0 +1,10 @@
+implementation/sqlite_lab.db
+implementation/verify_runtime.db
+implementation/test_simple.db*
+implementation/test_runtime/
+implementation/tmp_pytest/
+implementation/.tmp/
+.pytest_cache/
+pytest-cache-files-*/
+__pycache__/
+*.pyc

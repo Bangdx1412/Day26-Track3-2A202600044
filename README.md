@@ -179,3 +179,185 @@ Optional bonus:
 - add authentication for SSE or HTTP transport
 - support both SQLite and PostgreSQL with the same MCP surface
 - add richer output annotations or pagination
+
+## Implementation Notes
+
+This repository includes a working implementation under `implementation/`.
+
+### Project Structure
+
+```text
+implementation/
+  db.py
+  init_db.py
+  mcp_server.py
+  verify_server.py
+  tests/
+    test_server.py
+```
+
+### Setup
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python implementation\init_db.py
+```
+
+`implementation/init_db.py` creates a reproducible SQLite database with:
+
+- `students`
+- `courses`
+- `enrollments`
+
+The MCP server also auto-creates the database on startup if `implementation/sqlite_lab.db` does not exist.
+
+### Run The MCP Server
+
+```powershell
+python implementation\mcp_server.py
+```
+
+The default transport is stdio, suitable for MCP clients and Inspector.
+
+### Tools
+
+`search`
+
+- Searches a validated table.
+- Supports selected columns, filters, ordering, `limit`, and `offset`.
+- Supported filter operators: `=`, `!=`, `>`, `>=`, `<`, `<=`, `like`, `in`, `is_null`.
+
+Example payload:
+
+```json
+{
+  "table": "students",
+  "filters": { "cohort": "A1" },
+  "columns": ["id", "name", "cohort", "score"],
+  "order_by": "score",
+  "descending": true,
+  "limit": 10
+}
+```
+
+`insert`
+
+- Inserts one row into a validated table.
+- Rejects empty inserts and unknown columns.
+- Returns the inserted payload and generated id.
+
+Example payload:
+
+```json
+{
+  "table": "students",
+  "values": {
+    "name": "Annie Easley",
+    "cohort": "A1",
+    "email": "annie@example.edu",
+    "score": 89
+  }
+}
+```
+
+`aggregate`
+
+- Supports `count`, `avg`, `sum`, `min`, and `max`.
+- Supports optional filters and `group_by`.
+
+Example payload:
+
+```json
+{
+  "table": "students",
+  "metric": "avg",
+  "column": "score",
+  "group_by": "cohort"
+}
+```
+
+### Resources
+
+- `schema://database`
+- `schema://table/{table_name}`
+
+Example:
+
+```text
+schema://table/students
+```
+
+### Verification
+
+Run automated tests:
+
+```powershell
+python -m pytest implementation\tests -p no:cacheprovider
+```
+
+Run the repeatable verification script:
+
+```powershell
+python implementation\verify_server.py
+```
+
+Verify MCP tool and resource discovery with FastMCP's in-memory client:
+
+```powershell
+python implementation\verify_mcp.py
+```
+
+The verification script demonstrates:
+
+- full schema payload
+- valid `search`
+- valid `insert`
+- valid `aggregate`
+- invalid table error
+
+### Inspector
+
+From the repository root, replace the paths with absolute paths for your machine:
+
+```powershell
+npx -y @modelcontextprotocol/inspector python E:\Day26-Track3-MCP-tool-integration\implementation\mcp_server.py
+```
+
+Checklist inside Inspector:
+
+- `search`, `insert`, and `aggregate` appear as tools
+- `schema://database` appears as a resource
+- `schema://table/{table_name}` is readable with `students`
+- valid calls return rows
+- invalid calls return clear validation errors
+
+### Codex Client Example
+
+Example `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.sqlite_lab]
+command = "python"
+args = ["E:\\Day26-Track3-MCP-tool-integration\\implementation\\mcp_server.py"]
+```
+
+### Gemini CLI Example
+
+```powershell
+gemini mcp add sqlite-lab python E:\Day26-Track3-MCP-tool-integration\implementation\mcp_server.py --description "SQLite lab FastMCP server" --timeout 10000
+gemini mcp list
+gemini --allowed-mcp-server-names sqlite-lab --yolo -p "Use the sqlite-lab MCP server and show me the top 2 students by score."
+```
+
+### Demo Script
+
+For a short demo, show these actions in order:
+
+1. Start the server in Inspector.
+2. Open `schema://database`.
+3. Call `search` for students in cohort `A1`.
+4. Call `insert` to add a student.
+5. Call `aggregate` to average score by cohort.
+6. Call `search` with a missing table and show the clear error.
